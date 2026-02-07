@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>栄養シミュレーター (詳細解説付き)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --bg: #f8f9fa; --text: #333; --lp-color: #2ecc71; --trme-color: #f39c12; --meal-color: #3498db; --detail-bg: #e3f2fd; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: var(--text); padding: 20px; line-height: 1.6; }
+        .container { max-width: 900px; margin: auto; background: #fff; padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); }
+        
+        h2 { text-align: center; margin-bottom: 25px; color: #2c3e50; font-size: 1.6rem; }
+        
+        /* コントロール */
+        .top-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .card { padding: 15px; border: 1px solid #eee; border-radius: 8px; background: #fff; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 0.9rem; color: #555; }
+        select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 1rem; }
+        
+        /* グラフ */
+        .chart-box { position: relative; height: 550px; margin-bottom: 10px; }
+        
+        /* 凡例 */
+        .legend-info { text-align: center; font-size: 0.9rem; margin-bottom: 20px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
+        .dot { width: 12px; height: 12px; display: inline-block; border-radius: 3px; margin-right: 5px; }
+        .red-line-legend { color: red; font-weight: bold; border-bottom: 2px dashed red; }
+
+        /* サプリスイッチ */
+        .bottom-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+        .switch-box { display: flex; align-items: center; justify-content: space-between; padding: 15px; border: 2px solid #eee; border-radius: 10px; cursor: pointer; transition: 0.2s; }
+        .switch-box:hover { background: #fafafa; }
+        .switch-box input { width: 22px; height: 22px; cursor: pointer; }
+        .lp-active { border-color: var(--lp-color); background: #f0fff4 !important; }
+        .trme-active { border-color: var(--trme-color); background: #fef9e7 !important; }
+
+        /* 詳細ボタンとエリア */
+        .detail-btn { display: block; width: 100%; padding: 15px; background: #2c3e50; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; text-align: center; margin-top: 20px; transition: 0.3s; }
+        .detail-btn:hover { background: #34495e; }
+        
+        .detail-content { display: none; margin-top: 20px; padding: 20px; background: var(--detail-bg); border-radius: 10px; border-left: 5px solid #2196F3; }
+        .detail-content h3 { margin-top: 0; color: #1565C0; font-size: 1.2rem; }
+        .detail-item { margin-bottom: 15px; }
+        .badge-safe { background: #4CAF50; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; vertical-align: middle; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📊 栄養バランス・シミュレーター</h2>
+
+    <div class="top-controls">
+        <div class="card">
+            <label>👤 1. 対象データ (年齢・性別)</label>
+            <div style="display:flex; gap:10px;">
+                <select id="gender" onchange="update()">
+                    <option value="male" selected>男性</option>
+                    <option value="female">女性</option>
+                </select>
+                <select id="age" onchange="update()">
+                    <option value="18" selected>18-29歳</option>
+                    <option value="30">30-49歳</option>
+                    <option value="50">50-64歳</option>
+                </select>
+            </div>
+        </div>
+        <div class="card">
+            <label>🍱 2. 食事メニュー</label>
+            <select id="meal" onchange="update()">
+                <option value="none">（未選択）</option>
+                <option value="mcdonalds">マックセット</option>
+                <option value="pasta">パスタ (ミートソース)</option>
+                <option value="gyudon">牛丼 (並盛)</option>
+                <option value="cupnoodle">カップラーメン</option>
+                <option value="onigiri">おにぎり (1個)</option>
+                <option value="chocolate">チョコレート (50g)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="chart-box">
+        <canvas id="nutrientChart"></canvas>
+    </div>
+    
+    <div class="legend-info">
+        <span><span class="dot" style="background:var(--meal-color);"></span>食事</span>
+        <span><span class="dot" style="background:var(--lp-color);"></span>ライフパック</span>
+        <span><span class="dot" style="background:var(--trme-color);"></span>TRME</span>
+        <span class="red-line-legend">---- 1食分を100%として ----</span>
+    </div>
+
+    <div class="bottom-controls">
+        <div class="switch-box" id="lpCard" onclick="toggleCheck('lpCheck')">
+            <div>
+                <strong>ライフパック ナノ プラス</strong><br>
+                <small style="color:#666;">1袋分 (ビタミン・ミネラル)</small>
+            </div>
+            <input type="checkbox" id="lpCheck" onclick="event.stopPropagation(); update();">
+        </div>
+        
+        <div class="switch-box" id="trmeCard" onclick="toggleCheck('trmeCheck')">
+            <div>
+                <strong>TRME スムージー</strong><br>
+                <small style="color:#666;">1回分 (たんぱく質+10g)</small>
+            </div>
+            <input type="checkbox" id="trmeCheck" onclick="event.stopPropagation(); update();">
+        </div>
+    </div>
+
+    <button class="detail-btn" onclick="toggleDetails()">ℹ️ 栄養素の詳細解説を見る (過剰摂取について)</button>
+
+    <div id="detailSection" class="detail-content">
+        <h3>💡 100%を超えても大丈夫？ 栄養の真実</h3>
+        
+        <div class="detail-item">
+            <strong>✅ ビタミンB群・Cが突き抜けている理由 <span class="badge-safe">安全</span></strong>
+            <p>これらは「水溶性ビタミン」です。体の中に長時間留めておくことができないため、一度にたくさん摂取して、体が必要な分だけ吸収し、<strong>余った分は数時間で尿として排出</strong>されます。<br>
+            「過剰摂取」にはならず、むしろ常に満タンにしておくことで、食べたものをスムーズにエネルギーに変える（代謝する）ことができます。</p>
+        </div>
+
+        <div class="detail-item">
+            <strong>✅ 脂溶性ビタミン・ミネラルについて <span class="badge-safe">設計済み</span></strong>
+            <p>ビタミンA・Dやミネラル類は、体に蓄積するため摂りすぎに注意が必要ですが、ライフパックは<strong>「耐容上限量（UL）」を超えない安全な範囲</strong>で設計されています。<br>
+            食事と合わせても健康被害が出ないよう計算されているので、安心してお飲みいただけます。</p>
+        </div>
+
+        <div class="detail-item">
+            <strong>⚠️ 注意が必要なのは「上段」の項目</strong>
+            <p>グラフ上部の「エネルギー」「脂質」「塩分」などが100%を大きく超えている場合は注意が必要です。これらは排出されにくく、脂肪として蓄積されます。サプリでビタミン（下段）を補い、代謝を助けることが重要です。</p>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// --- 基準値データ (18-29歳男性 デフォルト) ---
+const RDA = {
+    male: { 
+        18: {cal:883, fat:25, carb:110, salt:2.5, protein:22, vitB1:0.47, vitB2:0.53, vitD:2.8, Ca:266, Mg:113, Zn:3.6, Fe:2.5}, 
+        30: {cal:900, fat:25, carb:115, salt:2.5, protein:22, vitB1:0.47, vitB2:0.53, vitD:3.0, Ca:250, Mg:123, Zn:3.6, Fe:2.5},
+        50: {cal:866, fat:24, carb:110, salt:2.5, protein:22, vitB1:0.43, vitB2:0.50, vitD:3.0, Ca:250, Mg:116, Zn:3.3, Fe:2.5} 
+    },
+    female: { 
+        18: {cal:650, fat:18, carb:85, salt:2.1, protein:17, vitB1:0.37, vitB2:0.40, vitD:2.8, Ca:216, Mg:90, Zn:2.6, Fe:3.5},
+        30: {cal:683, fat:19, carb:90, salt:2.2, protein:17, vitB1:0.37, vitB2:0.40, vitD:3.0, Ca:216, Mg:96, Zn:2.6, Fe:3.5},
+        50: {cal:650, fat:18, carb:85, salt:2.2, protein:17, vitB1:0.37, vitB2:0.40, vitD:3.0, Ca:216, Mg:96, Zn:2.6, Fe:2.2} 
+    }
+};
+
+// --- 食品データ ---
+const foods = {
+    none: {cal:0, fat:0, carb:0, salt:0, protein:0, vitB1:0, vitB2:0, vitD:0, Ca:0, Mg:0, Zn:0, Fe:0},
+    mcdonalds: {cal:1100, fat:52, carb:130, salt:3.5, protein:30, vitB1:0.2, vitB2:0.3, vitD:0.5, Ca:150, Mg:40, Zn:3.0, Fe:2.0},
+    pasta: {cal:700, fat:20, carb:100, salt:3.8, protein:18, vitB1:0.1, vitB2:0.1, vitD:0, Ca:30, Mg:25, Zn:1.5, Fe:1.2},
+    gyudon: {cal:730, fat:25, carb:95, salt:2.7, protein:20, vitB1:0.1, vitB2:0.15, vitD:0.1, Ca:30, Mg:30, Zn:2.5, Fe:1.5},
+    cupnoodle: {cal:350, fat:15, carb:45, salt:4.8, protein:10, vitB1:0.3, vitB2:0.3, vitD:0, Ca:100, Mg:20, Zn:0.8, Fe:1.0},
+    onigiri: {cal:180, fat:0.5, carb:40, salt:1.0, protein:4, vitB1:0.04, vitB2:0.03, vitD:0.5, Ca:10, Mg:15, Zn:0.5, Fe:0.3},
+    chocolate: {cal:280, fat:17, carb:28, salt:0.1, protein:3.5, vitB1:0.04, vitB2:0.1, vitD:0.2, Ca:110, Mg:30, Zn:0.7, Fe:0.8}
+};
+
+// --- サプリデータ ---
+const lpData = {cal:0, fat:0, carb:0, salt:0, protein:0.5, vitB1:5, vitB2:5, vitD:10, Ca:200, Mg:100, Zn:5, Fe:1.5};
+const trmeData = {cal:85, fat:1, carb:10, salt:0.1, protein:10, vitB1:0.3, vitB2:0.3, vitD:1.5, Ca:80, Mg:40, Zn:1.5, Fe:1.0};
+
+const labels = ['⚡️エネルギー', '🛢 脂質', '🍚 炭水化物', '🧂 塩分', '💪 たんぱく質', '🔥 ビタミンB1', '🔥 ビタミンB2', '☀️ ビタミンD', '🦴 カルシウム', '⚙️ マグネシウム', '🛡 亜鉛', '🩸 鉄'];
+const keys = ['cal', 'fat', 'carb', 'salt', 'protein', 'vitB1', 'vitB2', 'vitD', 'Ca', 'Mg', 'Zn', 'Fe'];
+
+let chart;
+
+function init() {
+    const ctx = document.getElementById('nutrientChart').getContext('2d');
+    chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: '食事', data: [], backgroundColor: '#3498db', stack: 'Stack 0' },
+                { label: 'ライフパック', data: [], backgroundColor: '#2ecc71', stack: 'Stack 0' },
+                { label: 'TRMEスムージー', data: [], backgroundColor: '#f39c12', stack: 'Stack 0' }
+            ]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index', // 同じ項目の全データセットを表示
+                intersect: false, // バーに乗っていなくてもX軸が合えば表示
+            },
+            scales: {
+                x: { stacked: true, max: 400, ticks: { callback: v => v + '%' } },
+                y: { stacked: true }
+            },
+            plugins: {
+                legend: { display: false },
+                annotation: {
+                    annotations: {
+                        line1: { type: 'line', xMin: 100, xMax: 100, borderColor: 'red', borderWidth: 2, borderDash: [5, 5] }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        // 各項目のラベル
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.x !== null) {
+                                label += Math.round(context.parsed.x) + '%';
+                            }
+                            return label;
+                        },
+                        // フッターに合計を表示
+                        footer: function(tooltipItems) {
+                            let sum = 0;
+                            tooltipItems.forEach(function(tooltipItem) {
+                                sum += tooltipItem.parsed.x;
+                            });
+                            return '━━━━━━━━\n合計: ' + Math.round(sum) + '%';
+                        }
+                    }
+                }
+            }
+        }
+    });
+    update();
+}
+
+function toggleCheck(id) {
+    const cb = document.getElementById(id);
+    cb.checked = !cb.checked;
+    update();
+}
+
+function toggleDetails() {
+    const el = document.getElementById('detailSection');
+    const btn = document.querySelector('.detail-btn');
+    if (el.style.display === 'block') {
+        el.style.display = 'none';
+        btn.innerText = 'ℹ️ 栄養素の詳細解説を見る (過剰摂取について)';
+    } else {
+        el.style.display = 'block';
+        btn.innerText = '🔼 解説を閉じる';
+        // スクロール
+        el.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+function update() {
+    const gender = document.getElementById('gender').value;
+    const age = document.getElementById('age').value;
+    const mealKey = document.getElementById('meal').value;
+    const isLP = document.getElementById('lpCheck').checked;
+    const isTRME = document.getElementById('trmeCheck').checked;
+
+    document.getElementById('lpCard').className = isLP ? 'switch-box lp-active' : 'switch-box';
+    document.getElementById('trmeCard').className = isTRME ? 'switch-box trme-active' : 'switch-box';
+
+    const rda = RDA[gender][age];
+    const meal = foods[mealKey];
+    
+    // データ計算
+    const mealP = keys.map(k => (meal[k] / rda[k]) * 100);
+    const lpP = keys.map(k => isLP ? (lpData[k] / rda[k]) * 100 : 0);
+    const trmeP = keys.map(k => isTRME ? (trmeData[k] / rda[k]) * 100 : 0);
+
+    // 積み上げ順: 食事(青) -> ライフパック(緑) -> TRME(オレンジ)
+    chart.data.datasets[0].data = mealP;
+    chart.data.datasets[1].data = lpP;
+    chart.data.datasets[2].data = trmeP;
+    
+    chart.update();
+}
+
+window.onload = init;
+</script>
+
+</body>
+</html>

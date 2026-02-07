@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>栄養シミュレーター (詳細解説付き)</title>
+    <title>栄養シミュレーター (N+ & P)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #f8f9fa; --text: #333; --lp-color: #2ecc71; --trme-color: #f39c12; --meal-color: #3498db; --detail-bg: #e3f2fd; }
@@ -42,6 +42,8 @@
         .detail-content h3 { margin-top: 0; color: #1565C0; font-size: 1.2rem; }
         .detail-item { margin-bottom: 15px; }
         .badge-safe { background: #4CAF50; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; vertical-align: middle; }
+
+        .analysis-box { padding: 20px; background: #fff8e1; border-left: 6px solid #f1c40f; border-radius: 6px; line-height: 1.6; font-size: 0.95rem; margin-top: 20px; }
     </style>
 </head>
 <body>
@@ -84,15 +86,15 @@
     
     <div class="legend-info">
         <span><span class="dot" style="background:var(--meal-color);"></span>食事</span>
-        <span><span class="dot" style="background:var(--lp-color);"></span>ライフパック</span>
-        <span><span class="dot" style="background:var(--trme-color);"></span>TRME</span>
+        <span><span class="dot" style="background:var(--lp-color);"></span>マルチビタミンN+</span>
+        <span><span class="dot" style="background:var(--trme-color);"></span>スムージーP</span>
         <span class="red-line-legend">---- 1食分を100%として ----</span>
     </div>
 
     <div class="bottom-controls">
         <div class="switch-box" id="lpCard" onclick="toggleCheck('lpCheck')">
             <div>
-                <strong>ライフパック ナノ プラス</strong><br>
+                <strong>マルチビタミンN+</strong><br>
                 <small style="color:#666;">1袋分 (ビタミン・ミネラル)</small>
             </div>
             <input type="checkbox" id="lpCheck" onclick="event.stopPropagation(); update();">
@@ -100,11 +102,15 @@
         
         <div class="switch-box" id="trmeCard" onclick="toggleCheck('trmeCheck')">
             <div>
-                <strong>TRME スムージー</strong><br>
+                <strong>スムージーP</strong><br>
                 <small style="color:#666;">1回分 (たんぱく質+10g)</small>
             </div>
             <input type="checkbox" id="trmeCheck" onclick="event.stopPropagation(); update();">
         </div>
+    </div>
+
+    <div id="analysis" class="analysis-box">
+        食事メニューを選択してください。
     </div>
 
     <button class="detail-btn" onclick="toggleDetails()">ℹ️ 栄養素の詳細解説を見る (過剰摂取について)</button>
@@ -120,7 +126,7 @@
 
         <div class="detail-item">
             <strong>✅ 脂溶性ビタミン・ミネラルについて <span class="badge-safe">設計済み</span></strong>
-            <p>ビタミンA・Dやミネラル類は、体に蓄積するため摂りすぎに注意が必要ですが、ライフパックは<strong>「耐容上限量（UL）」を超えない安全な範囲</strong>で設計されています。<br>
+            <p>ビタミンA・Dやミネラル類は、体に蓄積するため摂りすぎに注意が必要ですが、マルチビタミンN+は<strong>「耐容上限量（UL）」を超えない安全な範囲</strong>で設計されています。<br>
             食事と合わせても健康被害が出ないよう計算されているので、安心してお飲みいただけます。</p>
         </div>
 
@@ -175,8 +181,8 @@ function init() {
             labels: labels,
             datasets: [
                 { label: '食事', data: [], backgroundColor: '#3498db', stack: 'Stack 0' },
-                { label: 'ライフパック', data: [], backgroundColor: '#2ecc71', stack: 'Stack 0' },
-                { label: 'TRMEスムージー', data: [], backgroundColor: '#f39c12', stack: 'Stack 0' }
+                { label: 'マルチビタミンN+', data: [], backgroundColor: '#2ecc71', stack: 'Stack 0' },
+                { label: 'スムージーP', data: [], backgroundColor: '#f39c12', stack: 'Stack 0' }
             ]
         },
         options: {
@@ -184,8 +190,8 @@ function init() {
             responsive: true,
             maintainAspectRatio: false,
             interaction: {
-                mode: 'index', // 同じ項目の全データセットを表示
-                intersect: false, // バーに乗っていなくてもX軸が合えば表示
+                mode: 'index', 
+                intersect: false, 
             },
             scales: {
                 x: { stacked: true, max: 400, ticks: { callback: v => v + '%' } },
@@ -200,7 +206,6 @@ function init() {
                 },
                 tooltip: {
                     callbacks: {
-                        // 各項目のラベル
                         label: function(context) {
                             let label = context.dataset.label || '';
                             if (label) {
@@ -211,7 +216,6 @@ function init() {
                             }
                             return label;
                         },
-                        // フッターに合計を表示
                         footer: function(tooltipItems) {
                             let sum = 0;
                             tooltipItems.forEach(function(tooltipItem) {
@@ -242,7 +246,6 @@ function toggleDetails() {
     } else {
         el.style.display = 'block';
         btn.innerText = '🔼 解説を閉じる';
-        // スクロール
         el.scrollIntoView({ behavior: 'smooth' });
     }
 }
@@ -265,12 +268,32 @@ function update() {
     const lpP = keys.map(k => isLP ? (lpData[k] / rda[k]) * 100 : 0);
     const trmeP = keys.map(k => isTRME ? (trmeData[k] / rda[k]) * 100 : 0);
 
-    // 積み上げ順: 食事(青) -> ライフパック(緑) -> TRME(オレンジ)
+    // 積み上げ順: 食事(青) -> N+(緑) -> Smoothie(オレンジ)
     chart.data.datasets[0].data = mealP;
     chart.data.datasets[1].data = lpP;
     chart.data.datasets[2].data = trmeP;
     
     chart.update();
+
+    // 分析テキスト
+    let text = "";
+    if (mealKey === 'none') {
+        text = "メニューを選択してください。チェックボックスで製品を追加すると、栄養素が積み上げられます。";
+    } else {
+        const mealName = document.getElementById('meal').options[document.getElementById('meal').selectedIndex].text;
+        text = `<strong>【${mealName}】を分析中：</strong><br>`;
+        
+        if (isLP && isTRME) {
+            text += "✅ <strong>マルチビタミンN+(緑) ＋ スムージーP(橙)：</strong><br>理想的な組み合わせです。N+で「微量栄養素」のベースを作り、その上にスムージーPで「たんぱく質」を上乗せしました。グラフが全体的に100%を超え、代謝の良い状態が作れます。";
+        } else if (isLP) {
+            text += "💊 <strong>マルチビタミンN+(緑)を追加：</strong><br>「食事のバー」の上に緑色のバーが積み重なりました。ビタミン・ミネラルが一気に100%ラインを超えましたが、たんぱく質（オレンジ色不足）はまだ余裕があるかもしれません。";
+        } else if (isTRME) {
+            text += "🥤 <strong>スムージーP(橙)を追加：</strong><br>「たんぱく質」のバーにオレンジ色が大きく乗りました。筋肉の材料は確保できましたが、緑色のバー（ビタミン類）がないため、代謝効率はまだ上げられます。";
+        } else {
+            text += "⚠️ <strong>食事のみ：</strong><br>赤い点線（1食分を100%）に届いていない項目が多いです。";
+        }
+    }
+    document.getElementById('analysis').innerHTML = text;
 }
 
 window.onload = init;
